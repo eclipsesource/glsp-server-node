@@ -58,7 +58,8 @@
   "dependencies": {
     "@eclipse-glsp/layout-elk": "2.1.0-next",
     "@eclipse-glsp/server": "2.1.0-next",
-    "inversify": "^6.0.1"
+    "inversify": "^6.0.1",
+    "openai": "^4.24.1"
   },
   "devDependencies": {
     "source-map-loader": "^4.0.1",

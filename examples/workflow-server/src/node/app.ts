@@ -16,12 +16,41 @@
 import 'reflect-metadata';
 
 import { configureELKLayoutModule } from '@eclipse-glsp/layout-elk';
-import { createAppModule, GModelStorage, SocketServerLauncher, WebSocketServerLauncher } from '@eclipse-glsp/server/node';
-import { Container } from 'inversify';
+import {
+    ActionHandlerConstructor,
+    createAppModule,
+    GModelStorage,
+    InstanceMultiBinding,
+    SocketServerLauncher,
+    WebSocketServerLauncher
+} from '@eclipse-glsp/server/node';
+import { Container, interfaces } from 'inversify';
 
 import { WorkflowLayoutConfigurator } from '../common/layout/workflow-layout-configurator';
 import { WorkflowDiagramModule, WorkflowServerModule } from '../common/workflow-diagram-module';
+import { AiAssistantRequestActionHandler } from './ai-assistant/ai-assistant-request-handler';
+import { WorkflowDiagramAssistant } from './ai-assistant/assistant';
+import { DiagramDescriptionProvider } from './ai-assistant/model-state-provider';
+import { ToolCallHandler } from './ai-assistant/tool-call-handler';
 import { createWorkflowCliParser } from './workflow-cli-parser';
+
+class NodeWorkflowDiagramModule extends WorkflowDiagramModule {
+    protected override configure(
+        bind: interfaces.Bind,
+        unbind: interfaces.Unbind,
+        isBound: interfaces.IsBound,
+        rebind: interfaces.Rebind
+    ): void {
+        super.configure(bind, unbind, isBound, rebind);
+        bind(ToolCallHandler).toSelf().inSingletonScope();
+        bind(DiagramDescriptionProvider).toSelf().inSingletonScope();
+        bind(WorkflowDiagramAssistant).toSelf().inSingletonScope();
+    }
+    protected override configureActionHandlers(binding: InstanceMultiBinding<ActionHandlerConstructor>): void {
+        super.configureActionHandlers(binding);
+        binding.add(AiAssistantRequestActionHandler);
+    }
+}
 
 async function launch(argv?: string[]): Promise<void> {
     const options = createWorkflowCliParser().parse(argv);
@@ -29,7 +58,10 @@ async function launch(argv?: string[]): Promise<void> {
     appContainer.load(createAppModule(options));
 
     const elkLayoutModule = configureELKLayoutModule({ algorithms: ['layered'], layoutConfigurator: WorkflowLayoutConfigurator });
-    const serverModule = new WorkflowServerModule().configureDiagramModule(new WorkflowDiagramModule(() => GModelStorage), elkLayoutModule);
+    const serverModule = new WorkflowServerModule().configureDiagramModule(
+        new NodeWorkflowDiagramModule(() => GModelStorage),
+        elkLayoutModule
+    );
 
     if (options.webSocket) {
         const launcher = appContainer.resolve(WebSocketServerLauncher);
